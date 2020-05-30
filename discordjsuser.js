@@ -3,9 +3,6 @@ const WebSocket = require("ws");
 
 class Client {
   conuctor() {}
-  printMsg() {
-    console.log("This is a message from the demo package");
-  }
   async login(email, password) {
     var jsonn;
     await fetch("https://discord.com/api/v6/auth/login", {
