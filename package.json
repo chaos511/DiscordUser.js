@@ -1,0 +1,18 @@
+{
+  "name": "discorduserjs",
+  "version": "1.0.1",
+  "description": "test",
+  "main": "discordjsuser.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaos511/DiscordUser.js.git"
+  },
+  "author": "user511",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^7.3.1"
+  }
+}
