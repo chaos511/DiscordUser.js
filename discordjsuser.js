@@ -258,14 +258,15 @@ class Gateway {
         this.websocket.onmessage = this.onMessage;
         this.websocket.token = this.token;
         this.websocket.that = this
-            // this.websocket.MESSAGE_CREATE = this.MESSAGE_CREATE;
-            // this.websocket.MESSAGE_DELETE = this.MESSAGE_DELETE;
-            // this.websocket.GUILD_MEMBERS_CHUNK = this.GUILD_MEMBERS_CHUNK;
-            // this.websocket.GUILD_MEMBER_LIST_UPDATE = this.GUILD_MEMBER_LIST_UPDATE;
-            // this.websocket.PRESENCE_UPDATE = this.PRESENCE_UPDATE;
-            // this.websocket.READY = this.READY;
-            // this.websocket.MESSAGE_REACTION_REMOVE = this.MESSAGE_REACTION_REMOVE
-            // this.websocket.MESSAGE_REACTION_ADD = this.MESSAGE_REACTION_ADD
+
+        // this.websocket.MESSAGE_CREATE = this.MESSAGE_CREATE;
+        // this.websocket.MESSAGE_DELETE = this.MESSAGE_DELETE;
+        // this.websocket.GUILD_MEMBERS_CHUNK = this.GUILD_MEMBERS_CHUNK;
+        // this.websocket.GUILD_MEMBER_LIST_UPDATE = this.GUILD_MEMBER_LIST_UPDATE;
+        // this.websocket.PRESENCE_UPDATE = this.PRESENCE_UPDATE;
+        // this.websocket.READY = this.READY;
+        // this.websocket.MESSAGE_REACTION_REMOVE = this.MESSAGE_REACTION_REMOVE
+        // this.websocket.MESSAGE_REACTION_ADD = this.MESSAGE_REACTION_ADD
 
         this.websocket.heartbeat = function(ws) {
             ws.send('{"op":1,"d":0}');
@@ -275,13 +276,32 @@ class Gateway {
         try {
             data.data = JSON.parse(data.data);
         } catch (ignore) {}
+        if (data.data.op > 0) {
+            console.log(data.data.op)
+        }
         switch (data.data.op) {
-            case 0:
+            case 0: //Dispatch event
+                console.log(data.data.t)
                 if (this.that[data.data.t]) {
                     this.that[data.data.t](data.data.d)
                 }
                 break;
-            case 10:
+            case 9: //Invalid Session	
+                clearInterval(this.reconnectTimeout)
+                try {
+                    this.close()
+                } catch (ignore) {}
+                console.log(data.data)
+                this.that.onDisconnect()
+                break
+            case 7: //Reconnect 
+                clearInterval(this.reconnectTimeout)
+                try {
+                    this.close()
+                } catch (ignore) {}
+                this.that.onDisconnect()
+                break;
+            case 10: //Hello 
                 this.hbi = data.data.d.heartbeat_interval
                 setInterval(this.heartbeat, this.hbi, this);
                 this.send(
@@ -302,12 +322,37 @@ class Gateway {
         `
                 );
                 break;
-            case 11:
+
+            case 11: //Heartbeat ACK	
+
                 clearInterval(this.reconnectTimeout)
-                this.reconnectTimeout = setInterval(this.that.onDisconnect, this.hbi * 2 + 1000)
+                this.reconnectTimeout = setInterval(() => {
+                    try {
+                        this.close()
+                    } catch (ignore) {}
+                    this.that.onDisconnect()
+                }, this.hbi * 2 + 1000)
                 break
         }
     }
+    startCall(d) {
+        this.send(JSON.stringify({
+            op: 4,
+            d
+        }))
+    }
     async login(email, password) {}
 }
-module.exports = { Client: Client, Messages: Messages, Gateway: Gateway };
+
+class VoiceGateway {
+    constructor() {}
+    connect(URL, token) {
+        this.websocket = new WebSocket("wss://" + URL);
+        this.websocket.onmessage = this.onMessage
+        this.websocket.token = token
+    }
+    onMessage(data) {
+        console.log(data.data)
+    }
+}
+module.exports = { Client: Client, Messages: Messages, Gateway: Gateway, VoiceGateway };
