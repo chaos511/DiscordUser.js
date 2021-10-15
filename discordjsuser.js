@@ -243,15 +243,15 @@ class Messages {
     }
 }
 class Gateway {
-    constructor(token) {
+    constructor(token, debug) {
+        this.debug = debug
         this.gatewayURL = "wss://gateway.discord.gg";
-
-        // this.gatewayURL = "ws://127.0.0.1:8083";
-
         this.token = token;
     }
     connect() {
-        console.log("connect")
+        if (this.debug) {
+            console.log("connect")
+        }
         this.websocket = new WebSocket(this.gatewayURL);
         this.websocket.onopen = this.onOpen;
         this.websocket.onerror = this.onError;
@@ -276,13 +276,13 @@ class Gateway {
         try {
             data.data = JSON.parse(data.data);
         } catch (ignore) {}
-        if (data.data.op > 0) {
+        if (data.data.op > 0 && this.that.debug) {
             console.log(data.data.op)
         }
         switch (data.data.op) {
             case 0: //Dispatch event
-                console.log(data.data.t)
-                if (this.that[data.data.t]) {
+                if (this.that[data.data.t] && this.that.debug) {
+                    console.log(data.data.t)
                     this.that[data.data.t](data.data.d)
                 }
                 break;
@@ -291,15 +291,20 @@ class Gateway {
                 try {
                     this.close()
                 } catch (ignore) {}
-                console.log(data.data)
-                this.that.onDisconnect()
+                try {
+                    this.that.onDisconnect()
+                    this.that.onDisconnect = null
+                } catch (ignore) {}
                 break
             case 7: //Reconnect 
                 clearInterval(this.reconnectTimeout)
                 try {
                     this.close()
                 } catch (ignore) {}
-                this.that.onDisconnect()
+                try {
+                    this.that.onDisconnect()
+                    this.that.onDisconnect = null
+                } catch (ignore) {}
                 break;
             case 10: //Hello 
                 this.hbi = data.data.d.heartbeat_interval
@@ -330,7 +335,10 @@ class Gateway {
                     try {
                         this.close()
                     } catch (ignore) {}
-                    this.that.onDisconnect()
+                    try {
+                        this.that.onDisconnect()
+                        this.that.onDisconnect = null
+                    } catch (ignore) {}
                 }, this.hbi * 2 + 1000)
                 break
         }
