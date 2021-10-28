@@ -292,8 +292,12 @@ class Gateway {
                     this.close()
                 } catch (ignore) {}
                 try {
+                    this.onmessage = null
+                    this.that.onmessage = null
                     this.that.onDisconnect()
                     this.that.onDisconnect = null
+                    this.that.connect = null
+
                 } catch (ignore) {}
                 break
             case 7: //Reconnect 
@@ -302,8 +306,12 @@ class Gateway {
                     this.close()
                 } catch (ignore) {}
                 try {
+                    this.onmessage = null
+                    this.that.onmessage = null
                     this.that.onDisconnect()
                     this.that.onDisconnect = null
+                    this.that.connect = null
+
                 } catch (ignore) {}
                 break;
             case 10: //Hello 
@@ -336,8 +344,12 @@ class Gateway {
                         this.close()
                     } catch (ignore) {}
                     try {
+                        this.onmessage = null
+                        this.that.onmessage = null
                         this.that.onDisconnect()
                         this.that.onDisconnect = null
+                        this.that.connect = null
+
                     } catch (ignore) {}
                 }, this.hbi * 2 + 1000)
                 break
