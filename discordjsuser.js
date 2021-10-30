@@ -281,8 +281,10 @@ class Gateway {
         }
         switch (data.data.op) {
             case 0: //Dispatch event
-                if (this.that[data.data.t] && this.that.debug) {
-                    console.log(data.data.t)
+                if (this.that[data.data.t]) {
+                    if (this.that.debug) {
+                        console.log(data.data.t)
+                    }
                     this.that[data.data.t](data.data.d)
                 }
                 break;
