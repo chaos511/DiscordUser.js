@@ -3,10 +3,6 @@ const WebSocket = require("ws");
 const fs = require("fs");
 const FormData = require("form-data")
 class Client {
-    conuctor() {}
-    printMsg() {
-        console.log("This is a message from the demo package");
-    }
     async login(email, password) {
         var jsonn;
         await fetch("https://discord.com/api/v6/auth/login", {
@@ -247,116 +243,124 @@ class Gateway {
         this.debug = debug
         this.gatewayURL = "wss://gateway.discord.gg";
         this.token = token;
+        this.seq=null
     }
     connect() {
         if (this.debug) {
-            console.log("connect")
+            console.log("Connecting...")
         }
         this.websocket = new WebSocket(this.gatewayURL);
         this.websocket.onopen = this.onOpen;
         this.websocket.onerror = this.onError;
-        this.websocket.onmessage = this.onMessage;
-        this.websocket.token = this.token;
-        this.websocket.that = this
-
-        // this.websocket.MESSAGE_CREATE = this.MESSAGE_CREATE;
-        // this.websocket.MESSAGE_DELETE = this.MESSAGE_DELETE;
-        // this.websocket.GUILD_MEMBERS_CHUNK = this.GUILD_MEMBERS_CHUNK;
-        // this.websocket.GUILD_MEMBER_LIST_UPDATE = this.GUILD_MEMBER_LIST_UPDATE;
-        // this.websocket.PRESENCE_UPDATE = this.PRESENCE_UPDATE;
-        // this.websocket.READY = this.READY;
-        // this.websocket.MESSAGE_REACTION_REMOVE = this.MESSAGE_REACTION_REMOVE
-        // this.websocket.MESSAGE_REACTION_ADD = this.MESSAGE_REACTION_ADD
-
-        this.websocket.heartbeat = function(ws) {
-            ws.send('{"op":1,"d":0}');
-        };
-    }
-    onMessage(data) {
+        this.websocket.onmessage = (data)=> {this.wsMessage(data)}      
+    };
+    wsMessage(data){
         try {
             data.data = JSON.parse(data.data);
         } catch (ignore) {}
-        if (data.data.op > 0 && this.that.debug) {
+        if (data.data.op > 0 && this.debug) {
+            console.log(data.data.op)
+        }
+
+        this.seq=data.data.s||this.seq
+        if (this.debug) {
             console.log(data.data.op)
         }
         switch (data.data.op) {
             case 0: //Dispatch event
-                if (this.that[data.data.t]) {
-                    if (this.that.debug) {
+
+                if (this[data.data.t]) {
+                    if (this.debug) {
                         console.log(data.data.t)
                     }
-                    this.that[data.data.t](data.data.d)
+                    this[data.data.t](data.data.d)
+                }else if(this.debug){
+                    console.log(data.data.t)
+                }
+                if(data.data.t=="READY"&&data.data.d.session_id){
+                    if(this.debug){
+                        console.log("Got session id: "+data.data.d.session_id)
+                    }
+                    this.sessionID=data.data.d.session_id
+                    this.reconnectTimeout = setTimeout(()=>{this.reconnect()}, this.hbi + 5000)
                 }
                 break;
             case 9: //Invalid Session	
-                clearInterval(this.reconnectTimeout)
-                try {
-                    this.close()
-                } catch (ignore) {}
-                try {
-                    this.onmessage = null
-                    this.that.onmessage = null
-                    this.that.onDisconnect()
-                    this.that.onDisconnect = null
-                    this.that.connect = null
-
-                } catch (ignore) {}
+                this.seq=null
+                this.sessionID=null
+                this.reconnect("Invalid Session")
                 break
             case 7: //Reconnect 
-                clearInterval(this.reconnectTimeout)
-                try {
-                    this.close()
-                } catch (ignore) {}
-                try {
-                    this.onmessage = null
-                    this.that.onmessage = null
-                    this.that.onDisconnect()
-                    this.that.onDisconnect = null
-                    this.that.connect = null
-
-                } catch (ignore) {}
+                this.reconnect("Server Requested Reconnect")
                 break;
             case 10: //Hello 
                 this.hbi = data.data.d.heartbeat_interval
-                setInterval(this.heartbeat, this.hbi, this);
-                this.send(
-                    `
-          {
-            "op": 2,
-            "d": {
-              "token": "` +
-                    this.token +
-                    `",
-              "properties": {
-                "$os": "linux",
-                "$browser": "my_library",
-                "$device": "my_library"
-              }
-            }
-        }
-        `
-                );
+                clearInterval(this.heartbeatInt)
+                this.heartbeatInt=setInterval(this.heartbeat, this.hbi-1000,this);
+                if(this.seq&&this.token&&this.sessionID){
+                    this.websocket.send(JSON.stringify({
+                        "op": 6,
+                        "d": {
+                            "token": this.token,
+                            "session_id": this.sessionID,  
+                            "seq": this.seq 
+                        }
+                    }))
+                    this.reconnectTimeout = setInterval(()=>{this.reconnect("Timeout")}, this.hbi*2 + 1000)
+                }else{
+                    this.websocket.send(
+                        `
+                            {
+                                "op": 2,
+                                "d": {
+                                "token": "` +
+                                        this.token +
+                                        `",
+                                "properties": {
+                                    "$os": "linux",
+                                    "$browser": "my_library",
+                                    "$device": "my_library"
+                                }
+                                }
+                            }
+                        `
+                    );
+                }
                 break;
 
             case 11: //Heartbeat ACK	
-
-                clearInterval(this.reconnectTimeout)
-                this.reconnectTimeout = setInterval(() => {
-                    try {
-                        this.close()
-                    } catch (ignore) {}
-                    try {
-                        this.onmessage = null
-                        this.that.onmessage = null
-                        this.that.onDisconnect()
-                        this.that.onDisconnect = null
-                        this.that.connect = null
-
-                    } catch (ignore) {}
-                }, this.hbi * 2 + 1000)
+                clearTimeout(this.reconnectTimeout)
+                this.reconnectTimeout = setTimeout(()=>{this.reconnect("Timeout")}, this.hbi*2 + 1000)
                 break
         }
     }
+    reconnect(reason){
+
+        
+        try {
+            this.websocket.close()
+        } catch (ignore) {
+        }
+        try {
+            clearInterval(this.heartbeatInt)
+
+            clearTimeout(this.reconnectTimeout)
+
+            if(this.onReconnect){
+                this.onReconnect(reason)
+            }
+
+            if(this.seq&&this.token&&this.sessionID){
+                this.connect()
+            }else if(this.onDisconnect){
+                this.onDisconnect()
+            }
+        } catch (ignore) {
+        }
+    }
+    heartbeat = function(that) {
+        that.websocket.send(JSON.stringify({"op":1,"d":that.seq}));
+    };
     startCall(d) {
         this.send(JSON.stringify({
             op: 4,
