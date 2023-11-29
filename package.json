@@ -1,6 +1,6 @@
 {
     "name": "discorduserjs",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "test",
     "main": "discordjsuser.js",
     "scripts": {
@@ -16,5 +16,8 @@
         "form-data": "^3.0.0",
         "node-fetch": "^2.6.0",
         "ws": "^7.3.1"
+    },
+    "devDependencies": {
+        "dotenv": "^16.3.1"
     }
 }

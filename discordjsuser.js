@@ -1,7 +1,14 @@
 const fetch = require("node-fetch");
-const WebSocket = require("ws");
-const fs = require("fs");
+let WebSocket
 const FormData = require("form-data")
+let fs;
+if (typeof process !== 'undefined' && process.browser !== true) {
+    // Running in Node.js environment
+    fs = require("fs");
+    WebSocket = require("ws");
+}else{
+    WebSocket=window.WebSocket
+}
 class Client {
     async login(email, password) {
         var jsonn;
@@ -56,7 +63,9 @@ class Messages {
     sendMessageWithAttachment(chatid, attachment, content, embed, nonce) {
 
         var formData = new FormData();
-        formData.append('file', fs.createReadStream(attachment));
+        if(fs){
+            formData.append('file', fs.createReadStream(attachment));
+        }
         if (content) {
             formData.append('content', content);
         }
@@ -154,7 +163,9 @@ class Messages {
                     if (channelCache[x].id == messageArray[messageArray.length - 1].id) {
                         console.log("found in cache")
                         messageArray = messageArray.concat(channelCache.slice(parseInt(x) + 1));
-                        fs.writeFileSync("channelCache/" + chatid + ".json", JSON.stringify(messageArray, null, 2));
+                        if(fs){
+                            fs.writeFileSync("channelCache/" + chatid + ".json", JSON.stringify(messageArray, null, 2));
+                        }
                         return messageArray;
                     }
                 }
@@ -171,7 +182,7 @@ class Messages {
                     channelCache
                 );
                 messageArray = messageArray.concat(tempMessageArray);
-                if (enableCache == true) {
+                if (enableCache == true&&fs) {
                     fs.writeFileSync("channelCache/" + chatid + ".json", JSON.stringify(messageArray, null, 2));
                 }
             }
@@ -250,38 +261,47 @@ class Gateway {
             console.log("Connecting...")
         }
         this.websocket = new WebSocket(this.gatewayURL);
+        
         this.websocket.onopen = this.onOpen;
         this.websocket.onerror = this.onError;
-        this.websocket.onmessage = (data)=> {this.wsMessage(data)}      
+
+        this.websocket.addEventListener("message", (event) => {
+            this.wsMessage(event)
+        });
     };
-    wsMessage(data){
+    wsMessage(event){
+        let data
         try {
-            data.data = JSON.parse(data.data);
-        } catch (ignore) {}
-        if (data.data.op > 0 && this.debug) {
-            console.log(data.data.op)
+            data = JSON.parse(event.data);
+        } catch (ignore) {
+            console.log(ignore)
+        }
+        if (data.op > 0 && this.debug) {
+            console.log(data.op)
         }
 
-        this.seq=data.data.s||this.seq
+        this.seq=data.s||this.seq
         if (this.debug) {
-            console.log(data.data.op)
+            console.log(data.op)
         }
-        switch (data.data.op) {
+        switch (data.op) {
             case 0: //Dispatch event
 
-                if (this[data.data.t]) {
-                    if (this.debug) {
-                        console.log(data.data.t)
-                    }
-                    this[data.data.t](data.data.d)
-                }else if(this.debug){
-                    console.log(data.data.t)
+                if (this.debug) {
+                    console.log(data.t)
                 }
-                if(data.data.t=="READY"&&data.data.d.session_id){
+                if (this[data.t]) {
+                    this[data.t](data.d)
+                }
+                if (this.ALL) {
+                    this.ALL(data.t,data.d)
+                }
+                
+                if(data.t=="READY"&&data.d.session_id){
                     if(this.debug){
-                        console.log("Got session id: "+data.data.d.session_id)
+                        console.log("Got session id: "+data.d.session_id)
                     }
-                    this.sessionID=data.data.d.session_id
+                    this.sessionID=data.d.session_id
                     this.reconnectTimeout = setTimeout(()=>{this.reconnect()}, this.hbi + 5000)
                 }
                 break;
@@ -294,7 +314,7 @@ class Gateway {
                 this.reconnect("Server Requested Reconnect")
                 break;
             case 10: //Hello 
-                this.hbi = data.data.d.heartbeat_interval
+                this.hbi = data.d.heartbeat_interval
                 clearInterval(this.heartbeatInt)
                 this.heartbeatInt=setInterval(this.heartbeat, this.hbi-1000,this);
                 if(this.seq&&this.token&&this.sessionID){
