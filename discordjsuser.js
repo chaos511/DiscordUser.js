@@ -40,7 +40,11 @@ class Messages {
     }
     async getUserProfile(userId) {
         var jsonn;
-        await fetch(discordURL + "users/" + userId + "/profile", {
+        let url = discordURL + "users/" + userId + "/profile"
+        if(!userId){
+            url = discordURL + "users/@me"
+        }
+        await fetch(url, {
                 headers: {
                     Authorization: this.token,
                     "content-type": "application/json",
